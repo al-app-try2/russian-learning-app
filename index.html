@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>庭師式ロシア語学習</title>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            line-height: 1.7;
+            font-size: 18px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        #progress {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .japanese {
+            font-size: 20px;
+        }
+
+        .english {
+            font-size: 21px;
+        }
+
+        .russian {
+            font-size: 28px;
+            margin: 15px 0;
+        }
+
+        button {
+            font-size: 18px;
+            padding: 10px 16px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 8px;
+            border: 1px solid #bbb;
+            background: white;
+        }
+
+        button:hover {
+            background: #f3f3f3;
+        }
+
+        button:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
+        input {
+            font-size: 20px;
+            padding: 10px;
+            width: 90%;
+            max-width: 550px;
+            box-sizing: border-box;
+            margin: 10px 0;
+        }
+
+        .word-button {
+            margin: 5px;
+        }
+
+        #selectedWords {
+            min-height: 50px;
+            padding: 10px;
+            border: 1px dashed #bbb;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .selected-word {
+            background: #eee;
+        }
+
+        .result {
+            font-size: 21px;
+            margin: 15px 0;
+        }
+
+        .next-button {
+            font-size: 20px;
+            background: #f0f7ee;
+            border-color: #9ab58f;
+        }
+
+        .audio-button {
+            font-size: 24px;
+            padding: 15px 25px;
+        }
+
+        .rating-area {
+            margin-top: 25px;
+            padding: 15px;
+            background: #faf7ee;
+            border-radius: 10px;
+        }
+
+        .rating-button {
+            font-size: 18px;
+        }
+
+        .small {
+            color: #777;
+            font-size: 15px;
+        }
+
+        .status {
+            font-size: 15px;
+            color: #777;
+            margin-top: 10px;
+        }
+
+        .complete {
+            text-align: center;
+            font-size: 24px;
+        }
+
+        .backup-tools {
+            padding: 12px;
+            margin: 0 0 18px;
+            border: 1px solid #e1e1e1;
+            border-radius: 10px;
+            text-align: center;
+            background: #fbfbf8;
+        }
+
+        .backup-tools button {
+            font-size: 14px;
+            padding: 8px 10px;
+        }
+
+        .audio-inline {
+            font-size: 16px;
+            padding: 8px 12px;
+        }
+
+        @media (max-width: 520px) {
+            body { padding: 14px 12px; font-size: 16px; }
+            .box { padding: 14px; }
+            .japanese { font-size: 18px; }
+            .english { font-size: 18px; }
+            .russian { font-size: 25px; overflow-wrap: anywhere; }
+            button { font-size: 16px; padding: 9px 12px; max-width: 100%; }
+            input { width: 100%; font-size: 18px; }
+            .audio-button { font-size: 20px; padding: 12px 18px; }
+            .backup-tools button { width: calc(50% - 16px); }
+        }
+        @media (max-width: 600px) {
+            body { padding: 12px; font-size: 17px; }
+            .box { padding: 14px; }
+            .russian { font-size: 24px; overflow-wrap: anywhere; }
+            button { min-height: 44px; }
+            input { width: 100%; font-size: 18px; }
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>🇷🇺 ロシア語学習</h1>
+
+<div id="progress"></div>
+
+<div id="app"></div>
+
+<div class="backup-tools" aria-label="学習記録の管理">
+    <button type="button" onclick="exportLearningData()">学習記録を書き出す</button>
+    <button type="button" onclick="document.getElementById('backupFileInput').click()">バックアップを読み込む</button>
+    <input id="backupFileInput" type="file" accept=".json,application/json" hidden onchange="importLearningData(event)">
+    <p class="small">学習記録はこのブラウザに保存されます。機種変更時は書き出し・読み込みを使ってください。</p>
+</div>
+
+
+<script src="questions.js"></script>
+<script>
+
+/* =========================================================
+   問題データ
+========================================================= */
+
+const questions = window.RUSSIAN_QUESTIONS;
+;
+
+
+/* =========================================================
+   学習状態
+========================================================= */
+
+let learningData = {};
+
+const STORAGE_KEY = "russianGardenLearningData";
+const BACKUP_KEY = "russianGardenLearningData_backup_before_update";
+if (localStorage.getItem(STORAGE_KEY) && !localStorage.getItem(BACKUP_KEY)) {
+    localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORAGE_KEY));
+}
+
+
+/* =========================================================
+   初期データを作る
+========================================================= */
+
+function createInitialState() {
+    const data = {};
+    questions.forEach(function(question) {
+        data[question.id] = {
+            stage: 0,
+            retention: 0,
+            nextReview: todayString(),
+            correctCount: 0,
+            wrongCount: 0,
+            lastResult: null,
+            introduced: false
+        };
+    });
+    return data;
+}
+
+
+/* =========================================================
+   今日の日付
+========================================================= */
+
+function todayString() {
+
+    const now = new Date();
+
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+
+    return year + "-" + month + "-" + day;
+}
+
+
+/* =========================================================
+   日付を何日後にする
+========================================================= */
+
+function addDays(days) {
+
+    const date = new Date();
+
+    date.setDate(date.getDate() + days);
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return year + "-" + month + "-" + day;
+}
+
+
+/* =========================================================
+   データ読み込み
+========================================================= */
+
+function migrateLearningData(rawData) {
+    const migrated = createInitialState();
+    if (!rawData || typeof rawData !== "object") return migrated;
+
+    questions.forEach(function(question, index) {
+        // Prefer stable ID keys. Legacy backups used numeric question indexes.
+        const oldState = rawData[question.id] || rawData[String(index)];
+        if (oldState && typeof oldState === "object") {
+            migrated[question.id] = Object.assign(
+                migrated[question.id],
+                oldState
+            );
+        }
+    });
+    return migrated;
+}
+
+function loadLearningData() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+        try {
+            learningData = migrateLearningData(JSON.parse(saved));
+        } catch (error) {
+            console.warn("保存データを読み込めませんでした。初期状態にします。", error);
+            learningData = createInitialState();
+        }
+    } else {
+        learningData = createInitialState();
+    }
+    saveLearningData();
+}
+
+
+/* =========================================================
+   データ保存
+========================================================= */
+
+function saveLearningData() {
+
+    localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(learningData)
+    );
+}
+
+
+/* =========================================================
+   学習記録の書き出し・読み込み
+========================================================= */
+
+function exportLearningData() {
+    const blob = new Blob(
+        [JSON.stringify(learningData, null, 2)],
+        { type: "application/json" }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "russian-garden-backup.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+function importLearningData(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+        try {
+            const raw = JSON.parse(reader.result);
+            if (!confirm("現在のこのブラウザの学習記録を、選択したバックアップで置き換えます。よろしいですか？")) {
+                event.target.value = "";
+                return;
+            }
+            learningData = migrateLearningData(raw);
+            saveLearningData();
+            alert("学習記録を読み込みました！");
+            startLesson();
+        } catch (error) {
+            alert("読み込みに失敗しました。学習記録のJSONファイルを選んでください。");
+        }
+        event.target.value = "";
+    };
+    reader.onerror = function() {
+        alert("ファイルを読み込めませんでした。");
+        event.target.value = "";
+    };
+    reader.readAsText(file, "utf-8");
+}
+
+
+/* =========================================================
+   ランダム化
+========================================================= */
+
+function shuffle(array) {
+
+    const copy = array.slice();
+
+    for (let i = copy.length - 1; i > 0; i--) {
+
+        const j = Math.floor(Math.random() * (i + 1));
+
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+
+    return copy;
+}
+
+
+/* =========================================================
+   出題対象を選ぶ
+========================================================= */
+
+function buildSession() {
+    const today = todayString();
+    const available = questions
+        .map(function(question) { return question.id; })
+        .filter(function(id) {
+            return learningData[id] && learningData[id].nextReview <= today;
+        });
+
+    const urgent = available.filter(function(id) {
+        const state = learningData[id];
+        return state.retention < 50 && state.stage > 0;
+    });
+    const developing = available.filter(function(id) {
+        const state = learningData[id];
+        return state.retention >= 50 && state.stage > 0 && state.stage < 5;
+    });
+    const longTerm = available.filter(function(id) {
+        return learningData[id].stage === 5;
+    });
+    const newQuestions = available.filter(function(id) {
+        return learningData[id].stage === 0;
+    });
+
+    // Reserve one daily slot for a new sentence when any are due.
+    // All other slots prioritize reviews, even when reviews have piled up.
+    const selected = [];
+    if (newQuestions.length > 0) {
+        selected.push(shuffle(newQuestions)[0]);
+    }
+    const reviewPool = shuffle(urgent).concat(shuffle(developing), shuffle(longTerm));
+    selected.push(...reviewPool.slice(0, 10 - selected.length));
+
+    const questionById = new Map(questions.map(function(question) {
+        return [question.id, question];
+    }));
+    return shuffle(selected).map(function(id) {
+        return { id: id, question: questionById.get(id) };
+    });
+}
+
+
+/* =========================================================
+   セッション
+========================================================= */
+
+let session = [];
+let currentPosition = 0;
+let currentQuestion = null;
+
+let attempts = 0;
+
+let currentExerciseType = null;
+
+let clozeAnswer = "";
+let selectedWords = [];
+let answerLocked = false;
+
+
+/* =========================================================
+   進捗表示
+========================================================= */
+
+function updateProgress() {
+
+    const progress = document.getElementById("progress");
+
+    if (session.length === 0) {
+
+        progress.textContent = "今日は復習なし";
+
+        return;
+    }
+
+    progress.textContent =
+        "今日の学習 " +
+        (currentPosition + 1) +
+        " / " +
+        session.length;
+}
+
+
+/* =========================================================
+   紹介画面
+========================================================= */
+
+function showIntroduction() {
+
+    const q = currentQuestion.question;
+    const state = learningData[currentQuestion.id];
+
+    state.introduced = true;
+
+    saveLearningData();
+
+    document.getElementById("app").innerHTML = `
+
+        <div class="box">
+
+            <div class="small">🌱 新しい文を覚えよう</div>
+
+            <p class="japanese">
+                🇯🇵 ${q.japanese}
+            </p>
+
+            <p class="english">
+                🇬🇧 ${q.english}
+            </p>
+
+            <p class="russian">
+                🇷🇺 ${q.russian}
+            </p>
+
+            <p>
+                まず正しい音を聞いてみましょう。
+            </p>
+
+            <button class="audio-button" onclick="speakRussian()">
+                🔊 再生
+            </button>
+
+            <p class="small">
+                音を聞いたら、自分でも声に出して読んでみよう！
+            </p>
+
+            <button class="next-button" onclick="startWordOrder()">
+                次へ → 並び替え
+            </button>
+
+        </div>
+    `;
+
+    updateProgress();
+
+    speakRussian();
+}
+
+
+/* =========================================================
+   ロシア語読み上げ
+========================================================= */
+
+function speakRussian() {
+
+    if (!currentQuestion) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance =
+        new SpeechSynthesisUtterance(
+            currentQuestion.question.russian
+        );
+
+    utterance.lang = "ru-RU";
+    utterance.rate = 0.85;
+    utterance.pitch = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+}
+
+
+/* =========================================================
+   並び替え開始
+========================================================= */
+
+function startWordOrder() {
+
+    attempts = 0;
+    answerLocked = false;
+
+    currentExerciseType = "wordOrder";
+
+    selectedWords = [];
+
+    const q = currentQuestion.question;
+
+    const words = q.russian
+        .replace(/[.,!?]/g, " $&")
+        .split(/\s+/)
+        .filter(function(word) {
+
+            return word !== "";
+
+        });
+
+    const shuffledWords = shuffle(words);
+
+    document.getElementById("app").innerHTML = `
+
+        <div class="box">
+
+            <div class="small">
+                ② 並び替え
+            </div>
+
+            <p class="english">
+                🇬🇧 ${q.english}
+            </p>
+
+            <button onclick="speakRussian()">🔊 発音を聞く</button>
+            <div id="selectedWords"></div>
+
+            <div id="wordButtons"></div>
+
+            <button onclick="clearSelectedWords()">
+                いったん全部戻す
+            </button>
+
+            <div id="result" class="result"></div>
+
+        </div>
+    `;
+
+    const container =
+        document.getElementById("wordButtons");
+
+    shuffledWords.forEach(function(word, index) {
+
+        const button = document.createElement("button");
+
+        button.textContent = word;
+
+        button.className = "word-button";
+
+        button.onclick = function() {
+
+            selectWord(word, button);
+
+        };
+
+        container.appendChild(button);
+
+    });
+
+    updateProgress();
+}
+
+
+/* =========================================================
+   単語選択
+========================================================= */
+
+function selectWord(word, button) {
+
+    selectedWords.push({
+        word: word,
+        button: button
+    });
+
+    button.disabled = true;
+
+    renderSelectedWords();
+
+    if (selectedWords.length ===
+        document.querySelectorAll(".word-button").length) {
+
+        checkWordOrder();
+
+    }
+}
+
+
+/* =========================================================
+   選択済み単語表示
+========================================================= */
+
+function renderSelectedWords() {
+
+    const container =
+        document.getElementById("selectedWords");
+
+    container.innerHTML = "";
+
+    selectedWords.forEach(function(item, index) {
+
+        const button = document.createElement("button");
+
+        button.textContent = item.word;
+
+        button.className = "selected-word";
+
+        button.onclick = function() {
+
+            selectedWords.splice(index, 1);
+
+            item.button.disabled = false;
+
+            renderSelectedWords();
+
+        };
+
+        container.appendChild(button);
+
+    });
+}
+
+
+/* =========================================================
+   並び替えリセット
+========================================================= */
+
+function clearSelectedWords() {
+
+    selectedWords.forEach(function(item) {
+
+        item.button.disabled = false;
+
+    });
+
+    selectedWords = [];
+
+    renderSelectedWords();
+}
+
+
+/* =========================================================
+   並び替え答え合わせ
+========================================================= */
+
+function checkWordOrder() {
+
+    const answer =
+        selectedWords
+            .map(function(item) {
+                return item.word;
+            })
+            .join(" ")
+            .replace(/\s+([.,!?])/g, "$1");
+
+    const correct =
+        currentQuestion.question.russian;
+
+    if (normalize(answer) === normalize(correct)) {
+
+        handleCorrect();
+
+    } else {
+
+        handleWrong(
+            "違います。もう一度並べ替えてみよう！"
+        );
+
+    }
+}
+
+
+/* =========================================================
+   穴埋め
+========================================================= */
+
+function startCloze() {
+
+    attempts = 0;
+    answerLocked = false;
+
+    currentExerciseType = "cloze";
+
+    const q = currentQuestion.question;
+
+    const words = q.russian.split(" ");
+
+    let possibleIndexes = [];
+
+    for (let i = 1; i < words.length - 1; i++) {
+
+        possibleIndexes.push(i);
+
+    }
+
+    if (possibleIndexes.length === 0) {
+
+        possibleIndexes =
+            words.map(function(word, index) {
+
+                return index;
+
+            });
+
+    }
+
+    const hiddenIndex =
+        possibleIndexes[
+            Math.floor(
+                Math.random() *
+                possibleIndexes.length
+            )
+        ];
+
+    clozeAnswer = words[hiddenIndex];
+
+    const displayWords =
+        words.map(function(word, index) {
+
+            if (index === hiddenIndex) {
+
+                return "□□□□";
+
+            }
+
+            return word;
+
+        });
+
+    document.getElementById("app").innerHTML = `
+
+        <div class="box">
+
+            <div class="small">
+                ③ 穴埋め
+            </div>
+
+            <p class="english">
+                🇬🇧 ${q.english}
+            </p>
+
+            <p class="russian">
+                🇷🇺 ${displayWords.join(" ")}
+            </p>
+            <button onclick="speakRussian()">🔊 発音を聞く</button>
+
+            <input
+                type="text"
+                id="answerInput"
+                placeholder="抜けているロシア語を入力"
+                onkeydown="handleEnter(event)"
+            >
+
+            <br>
+
+            <button onclick="checkCloze()">
+                答え合わせ
+            </button>
+
+            <div id="result" class="result"></div>
+
+        </div>
+    `;
+
+    updateProgress();
+}
+
+
+/* =========================================================
+   英文→ロシア語
+========================================================= */
+
+function startTyping() {
+
+    attempts = 0;
+    answerLocked = false;
+
+    currentExerciseType = "typing";
+
+    const q = currentQuestion.question;
+
+    document.getElementById("app").innerHTML = `
+
+        <div class="box">
+
+            <div class="small">
+                ④ 英文から入力
+            </div>
+
+            <p class="english">
+                🇬🇧 ${q.english}
+            </p>
+
+            <input
+                type="text"
+                id="answerInput"
+                placeholder="ロシア語で入力"
+                onkeydown="handleEnter(event)"
+            >
+
+            <br>
+
+            <button onclick="checkTyping()">
+                答え合わせ
+            </button>
+
+            <div id="result" class="result"></div>
+            <button onclick="speakRussian()">🔊 発音を聞く</button>
+
+        </div>
+    `;
+
+    updateProgress();
+}
+
+
+/* =========================================================
+   音声→入力
+========================================================= */
+
+function startAudio() {
+
+    attempts = 0;
+    answerLocked = false;
+
+    currentExerciseType = "audio";
+
+    const q = currentQuestion.question;
+
+    document.getElementById("app").innerHTML = `
+
+        <div class="box">
+
+            <div class="small">
+                ⑤ 音声から入力
+            </div>
+
+            <p>
+                音声だけを聞いて、ロシア語を入力してください。
+            </p>
+
+            <button
+                class="audio-button"
+                onclick="speakRussian()"
+            >
+                🔊 もう一度聞く
+            </button>
+
+            <br>
+
+            <input
+                type="text"
+                id="answerInput"
+                placeholder="聞こえたロシア語を入力"
+                onkeydown="handleEnter(event)"
+            >
+
+            <br>
+
+            <button onclick="checkAudio()">
+                答え合わせ
+            </button>
+
+            <div id="result" class="result"></div>
+
+        </div>
+    `;
+
+    updateProgress();
+
+    speakRussian();
+}
+
+
+/* =========================================================
+   正規化
+========================================================= */
+
+function normalize(text) {
+
+    return text
+        .toLowerCase()
+        .replace(/[.,!?]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+
+/* =========================================================
+   Enterキー
+========================================================= */
+
+function handleEnter(event) {
+
+    if (event.key !== "Enter") return;
+
+    if (currentExerciseType === "cloze") {
+
+        checkCloze();
+
+    } else if (currentExerciseType === "typing") {
+
+        checkTyping();
+
+    } else if (currentExerciseType === "audio") {
+
+        checkAudio();
+
+    }
+}
+
+
+/* =========================================================
+   穴埋め答え合わせ
+========================================================= */
+
+function checkCloze() {
+
+    const input =
+        document.getElementById("answerInput");
+
+    const answer = input.value;
+    if (answerLocked) return;
+
+    if (normalize(answer) === normalize(clozeAnswer)) {
+
+        handleCorrect();
+
+    } else {
+
+        handleWrong(
+            "🔄 もう一度！"
+        );
+
+    }
+}
+
+
+/* =========================================================
+   英文入力答え合わせ
+========================================================= */
+
+function checkTyping() {
+
+    const input =
+        document.getElementById("answerInput");
+
+    const answer = input.value;
+    if (answerLocked) return;
+
+    const correct =
+        currentQuestion.question.russian;
+
+    if (normalize(answer) === normalize(correct)) {
+
+        handleCorrect();
+
+    } else {
+
+        handleWrong(
+            "🔄 もう一度！"
+        );
+
+    }
+}
+
+
+/* =========================================================
+   音声入力答え合わせ
+========================================================= */
+
+function checkAudio() {
+
+    const input =
+        document.getElementById("answerInput");
+
+    const answer = input.value;
+    if (answerLocked) return;
+
+    const correct =
+        currentQuestion.question.russian;
+
+    if (normalize(answer) === normalize(correct)) {
+
+        handleCorrect();
+
+    } else {
+
+        handleWrong(
+            "🔄 もう一度！"
+        );
+
+    }
+}
+
+
+/* =========================================================
+   正解処理
+========================================================= */
+
+function handleCorrect() {
+
+    if (answerLocked) return;
+    answerLocked = true;
+    const state =
+        learningData[currentQuestion.id];
+
+    state.correctCount++;
+
+    state.lastResult = "correct";
+
+
+    /*
+       正解で定着度アップ
+       ただし大幅には上げない
+    */
+
+    state.retention =
+        Math.min(100, state.retention + 10);
+
+
+    /*
+       NEWなら紹介→並び替えをクリアしたので
+       次の段階へ
+    */
+
+    if (state.stage === 0) {
+
+        state.stage = 2;
+
+    } else {
+
+        /*
+           段階アップ条件は、
+           今回は「同じ段階で2回以上正解」
+           という簡単な仮ルール。
+        */
+
+        if (
+            state.correctCount >=
+            (state.stage * 2)
+            &&
+            state.stage < 5
+        ) {
+
+            state.stage++;
+
+        }
+
+    }
+
+
+    /*
+       長期保存
+    */
+
+    if (
+        state.stage >= 4 &&
+        state.retention >= 80
+    ) {
+
+        state.stage = 5;
+
+    }
+
+
+    /*
+       次回出題日を決める
+    */
+
+    scheduleNextReview(state);
+
+
+    saveLearningData();
+
+
+    const result =
+        document.getElementById("result");
+
+    if (result) {
+
+        result.textContent = "🎉 正解！";
+
+    }
+
+
+    /*
+       正解時は今まで通り自動で次へ
+    */
+
+    setTimeout(function() {
+
+        nextQuestion();
+
+    }, 700);
+}
+
+
+/* =========================================================
+   間違い処理
+========================================================= */
+
+function handleWrong(message) {
+
+    if (answerLocked) return;
+    attempts++;
+
+    const state =
+        learningData[currentQuestion.id];
+
+    state.wrongCount++;
+
+    state.lastResult = "wrong";
+
+
+    /*
+       1回目はその場で再挑戦
+    */
+
+    if (attempts === 1) {
+
+        const result =
+            document.getElementById("result");
+
+        if (result) {
+
+            result.textContent = message;
+
+        }
+
+        return;
+    }
+
+
+    /*
+       2回目の失敗
+       → 答えを表示
+       → 次の問題ボタンを表示
+    */
+
+    answerLocked = true;
+    state.retention =
+        Math.max(0, state.retention - 15);
+
+
+    /*
+       長期保存からの失敗は強烈に落とす
+    */
+
+    if (state.stage === 5) {
+
+        state.retention =
+            Math.max(0, state.retention - 30);
+
+        state.stage = 3;
+
+    }
+
+
+    /*
+       育成中での失敗も、
+       必要なら一段階戻す
+    */
+
+    else if (
+        state.stage > 1 &&
+        state.retention < 30
+    ) {
+
+        state.stage--;
+
+    }
+
+
+    /*
+       次回は早めに出す
+    */
+
+    state.nextReview = addDays(1);
+
+    saveLearningData();
+
+
+    const result =
+        document.getElementById("result");
+
+    if (result) {
+
+        result.innerHTML = `
+
+            ❌ 正解は
+            <strong>
+                ${currentQuestion.question.russian}
+            </strong>
+            です。
+
+            <br><br>
+
+            <button
+                class="next-button"
+                onclick="nextQuestion()"
+            >
+                次の問題へ →
+            </button>
+        `;
+
+    }
+
+}
+
+
+/* =========================================================
+   次回出題日
+========================================================= */
+
+function scheduleNextReview(state) {
+
+    let days = 1;
+
+
+    if (state.stage === 1) {
+
+        days = 1;
+
+    } else if (state.stage === 2) {
+
+        days = 2;
+
+    } else if (state.stage === 3) {
+
+        days = 4;
+
+    } else if (state.stage === 4) {
+
+        days = 7;
+
+    } else if (state.stage === 5) {
+
+        /*
+           定着度が高いほど間隔を伸ばす
+        */
+
+        if (state.retention >= 95) {
+
+            days = 30;
+
+        } else if (state.retention >= 90) {
+
+            days = 21;
+
+        } else if (state.retention >= 80) {
+
+            days = 14;
+
+        } else {
+
+            days = 7;
+
+        }
+
+    }
+
+
+    state.nextReview = addDays(days);
+}
+
+
+/* =========================================================
+   次の問題
+========================================================= */
+
+function nextQuestion() {
+
+    window.speechSynthesis.cancel();
+
+    currentPosition++;
+
+    if (currentPosition >= session.length) {
+
+        showComplete();
+
+        return;
+    }
+
+    currentQuestion =
+        session[currentPosition];
+
+    attempts = 0;
+
+    const state =
+        learningData[currentQuestion.id];
+
+
+    /*
+       NEWなら紹介
+    */
+
+    if (
+        state.stage === 0 &&
+        !state.introduced
+    ) {
+
+        showIntroduction();
+
+        return;
+
+    }
+
+
+    /*
+       段階によって問題形式を変える
+    */
+
+    if (state.stage === 0) {
+
+        showIntroduction();
+
+    } else if (state.stage === 1) {
+
+        startWordOrder();
+
+    } else if (state.stage === 2) {
+
+        startCloze();
+
+    } else if (state.stage === 3) {
+
+        startTyping();
+
+    } else if (state.stage === 4) {
+
+        startAudio();
+
+    } else {
+
+        /*
+           長期保存は、
+           生存確認として音声入力
+        */
+
+        startAudio();
+
+    }
+}
+
+
+/* =========================================================
+   完了
+========================================================= */
+
+function showComplete() {
+
+    window.speechSynthesis.cancel();
+
+    document.getElementById("progress").textContent =
+        "今日の学習 完了！";
+
+    document.getElementById("app").innerHTML = `
+
+        <div class="box complete">
+
+            🎉 おつかれさまでした🌱
+
+            <p class="small">
+                今日も庭の手入れができました。
+            </p>
+
+            <button onclick="startLesson()">
+                もう一度レッスンする
+            </button>
+
+        </div>
+    `;
+}
+
+
+/* =========================================================
+   レッスン開始
+========================================================= */
+
+function startLesson() {
+
+    window.speechSynthesis.cancel();
+
+    session = buildSession();
+
+    currentPosition = 0;
+
+    if (session.length === 0) {
+
+        document.getElementById("app").innerHTML = `
+
+            <div class="box complete">
+
+                🌱 今日は出題する問題がありません。
+
+                <p class="small">
+                    みんな庭でゆっくり休んでいます。
+                </p>
+
+            </div>
+        `;
+
+        document.getElementById("progress").textContent =
+            "今日の学習 0問";
+
+        return;
+    }
+
+    currentQuestion = session[0];
+
+    const state =
+        learningData[currentQuestion.id];
+
+    if (
+        state.stage === 0 &&
+        !state.introduced
+    ) {
+
+        showIntroduction();
+
+    } else {
+
+        nextQuestionStart();
+
+    }
+}
+
+
+/* =========================================================
+   レッスン最初の問題
+========================================================= */
+
+function nextQuestionStart() {
+
+    const state =
+        learningData[currentQuestion.id];
+
+    if (state.stage === 0) {
+
+        showIntroduction();
+
+    } else if (state.stage === 1) {
+
+        startWordOrder();
+
+    } else if (state.stage === 2) {
+
+        startCloze();
+
+    } else if (state.stage === 3) {
+
+        startTyping();
+
+    } else {
+
+        startAudio();
+
+    }
+}
+
+
+/* =========================================================
+   初期化
+========================================================= */
+
+loadLearningData();
+
+startLesson();
+
+</script>
+
+</body>
+</html>
