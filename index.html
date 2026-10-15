@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>庭師式ロシア語学習</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="apple-touch-icon.png">
 
     <style>
         body {
@@ -389,42 +391,41 @@ function shuffle(array) {
 ========================================================= */
 
 function buildSession() {
+    // 日付に関係なく復習できる。長期保存（蔵出し）を積極的に混ぜる。
     const today = todayString();
-    const available = questions
-        .map(function(question) { return question.id; })
-        .filter(function(id) {
-            return learningData[id] && learningData[id].nextReview <= today;
-        });
+    const allIds = questions.map(function(q) { return q.id; });
+    const learned = allIds.filter(function(id) { return learningData[id].stage > 0; });
+    const archived = shuffle(learned.filter(function(id) { return learningData[id].stage === 5; }));
+    const growing = shuffle(learned.filter(function(id) { return learningData[id].stage !== 5; }));
+    const unseen = shuffle(allIds.filter(function(id) { return learningData[id].stage === 0; }));
 
-    const urgent = available.filter(function(id) {
-        const state = learningData[id];
-        return state.retention < 50 && state.stage > 0;
+    // 既存の学習記録に日付がない場合でも、今後の紹介日は保存する。
+    const introducedToday = allIds.some(function(id) {
+        return learningData[id].introducedOn === today;
     });
-    const developing = available.filter(function(id) {
-        const state = learningData[id];
-        return state.retention >= 50 && state.stage > 0 && state.stage < 5;
-    });
-    const longTerm = available.filter(function(id) {
-        return learningData[id].stage === 5;
-    });
-    const newQuestions = available.filter(function(id) {
-        return learningData[id].stage === 0;
-    });
-
-    // Reserve one daily slot for a new sentence when any are due.
-    // All other slots prioritize reviews, even when reviews have piled up.
     const selected = [];
-    if (newQuestions.length > 0) {
-        selected.push(shuffle(newQuestions)[0]);
-    }
-    const reviewPool = shuffle(urgent).concat(shuffle(developing), shuffle(longTerm));
-    selected.push(...reviewPool.slice(0, 10 - selected.length));
+    if (!introducedToday && unseen.length) selected.push(unseen.shift());
 
-    const questionById = new Map(questions.map(function(question) {
-        return [question.id, question];
-    }));
+    // 蔵出しは最大で約半分を目安に確保し、残りは育成中の問題。
+    // 足りない枠はどちらの復習からでも埋める。
+    const archiveQuota = Math.min(5, 10 - selected.length);
+    selected.push(...archived.splice(0, archiveQuota));
+    selected.push(...growing.splice(0, 10 - selected.length));
+    selected.push(...archived.splice(0, 10 - selected.length));
+
+    // 学習開始直後など復習の母数が少ないときは新問で補う。
+    // 10問未満のレッスンを作らないことを優先する。
+    selected.push(...unseen.splice(0, 10 - selected.length));
+
+    // 問題総数が10未満のときだけ重複を許す。
+    if (selected.length < 10 && allIds.length > 0) {
+        const pool = shuffle(allIds);
+        while (selected.length < 10) selected.push(pool[selected.length % pool.length]);
+    }
+
+    const byId = new Map(questions.map(function(q) { return [q.id, q]; }));
     return shuffle(selected).map(function(id) {
-        return { id: id, question: questionById.get(id) };
+        return { id: id, question: byId.get(id) };
     });
 }
 
@@ -479,6 +480,7 @@ function showIntroduction() {
     const state = learningData[currentQuestion.id];
 
     state.introduced = true;
+    if (!state.introducedOn) state.introducedOn = todayString();
 
     saveLearningData();
 
@@ -750,10 +752,8 @@ function startCloze() {
 
     let possibleIndexes = [];
 
-    for (let i = 1; i < words.length - 1; i++) {
-
-        possibleIndexes.push(i);
-
+    for (let i = 0; i < words.length; i++) {
+        if (/[\p{L}]/u.test(words[i])) possibleIndexes.push(i);
     }
 
     if (possibleIndexes.length === 0) {
@@ -1093,22 +1093,9 @@ function handleCorrect() {
 
     } else {
 
-        /*
-           段階アップ条件は、
-           今回は「同じ段階で2回以上正解」
-           という簡単な仮ルール。
-        */
-
-        if (
-            state.correctCount >=
-            (state.stage * 2)
-            &&
-            state.stage < 5
-        ) {
-
-            state.stage++;
-
-        }
+        // 同じ日でも、正解するたびに次の形式へ進める。
+        // stage 5 は蔵出しとして維持する。
+        if (state.stage < 5) state.stage++;
 
     }
 
@@ -1131,7 +1118,7 @@ function handleCorrect() {
        次回出題日を決める
     */
 
-    scheduleNextReview(state);
+    scheduleNextReview(state); // 参考情報。出題の可否には使用しない。
 
 
     saveLearningData();
