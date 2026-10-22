@@ -391,36 +391,55 @@ function shuffle(array) {
 ========================================================= */
 
 function buildSession() {
-    // 日付に関係なく復習できる。長期保存（蔵出し）を積極的に混ぜる。
+    // 新規紹介はレッスン単位ではなく、暦日単位で最大2文。
     const today = todayString();
     const allIds = questions.map(function(q) { return q.id; });
-    const learned = allIds.filter(function(id) { return learningData[id].stage > 0; });
-    const archived = shuffle(learned.filter(function(id) { return learningData[id].stage === 5; }));
-    const growing = shuffle(learned.filter(function(id) { return learningData[id].stage !== 5; }));
-    const unseen = shuffle(allIds.filter(function(id) { return learningData[id].stage === 0; }));
-
-    // 既存の学習記録に日付がない場合でも、今後の紹介日は保存する。
-    const introducedToday = allIds.some(function(id) {
+    const introducedToday = allIds.filter(function(id) {
         return learningData[id].introducedOn === today;
+    }).length;
+    const newSlots = Math.max(0, 2 - introducedToday);
+    const unseen = shuffle(allIds.filter(function(id) {
+        const state = learningData[id];
+        return state.stage === 0 && !state.introduced;
+    }));
+    const selected = unseen.slice(0, newSlots);
+
+    // 蔵入り（stage 5）は最大2問。それ以外は学習途中の文を優先。
+    const learned = allIds.filter(function(id) {
+        return learningData[id].stage > 0;
     });
-    const selected = [];
-    if (!introducedToday && unseen.length) selected.push(unseen.shift());
+    function score(id) {
+        const state = learningData[id];
+        return (state.lastResult === "wrong" ? 1000 : 0)
+            + (100 - (Number(state.retention) || 0)) * 3
+            + Math.min(Number(state.wrongCount) || 0, 20) * 4;
+    }
+    function ranked(ids) {
+        return shuffle(ids).sort(function(a, b) { return score(b) - score(a); });
+    }
+    const developing = ranked(learned.filter(function(id) {
+        return learningData[id].stage < 5;
+    }));
+    const archive = ranked(learned.filter(function(id) {
+        return learningData[id].stage === 5;
+    }));
+    selected.push(...developing.slice(0, 10 - selected.length));
+    selected.push(...archive.slice(0, Math.min(2, 10 - selected.length)));
 
-    // 蔵出しは最大で約半分を目安に確保し、残りは育成中の問題。
-    // 足りない枠はどちらの復習からでも埋める。
-    const archiveQuota = Math.min(5, 10 - selected.length);
-    selected.push(...archived.splice(0, archiveQuota));
-    selected.push(...growing.splice(0, 10 - selected.length));
-    selected.push(...archived.splice(0, 10 - selected.length));
-
-    // 学習開始直後など復習の母数が少ないときは新問で補う。
-    // 10問未満のレッスンを作らないことを優先する。
-    selected.push(...unseen.splice(0, 10 - selected.length));
-
-    // 問題総数が10未満のときだけ重複を許す。
-    if (selected.length < 10 && allIds.length > 0) {
-        const pool = shuffle(allIds);
-        while (selected.length < 10) selected.push(pool[selected.length % pool.length]);
+    // 問題が足りない場合は既習文を再利用する。新規紹介は増やさず、
+    // 蔵入りも最大2問を守る（既習文が存在しない場合のみ10問未満）。
+    const repeats = shuffle(selected.filter(function(id) {
+        return learningData[id].stage > 0 && learningData[id].stage < 5;
+    }));
+    if (!repeats.length) {
+        repeats.push(...shuffle(selected.filter(function(id) {
+            return learningData[id].stage === 0;
+        })));
+    }
+    let cursor = 0;
+    while (selected.length < 10 && repeats.length) {
+        selected.push(repeats[cursor % repeats.length]);
+        cursor++;
     }
 
     const byId = new Map(questions.map(function(q) { return [q.id, q]; }));
@@ -428,7 +447,6 @@ function buildSession() {
         return { id: id, question: byId.get(id) };
     });
 }
-
 
 /* =========================================================
    セッション
@@ -445,6 +463,7 @@ let currentExerciseType = null;
 let clozeAnswer = "";
 let selectedWords = [];
 let answerLocked = false;
+let lastWrongTapAt = 0;
 
 
 /* =========================================================
@@ -558,6 +577,7 @@ function startWordOrder() {
 
     attempts = 0;
     answerLocked = false;
+    lastWrongTapAt = 0;
 
     currentExerciseType = "wordOrder";
 
@@ -743,6 +763,7 @@ function startCloze() {
 
     attempts = 0;
     answerLocked = false;
+    lastWrongTapAt = 0;
 
     currentExerciseType = "cloze";
 
@@ -837,6 +858,7 @@ function startTyping() {
 
     attempts = 0;
     answerLocked = false;
+    lastWrongTapAt = 0;
 
     currentExerciseType = "typing";
 
@@ -863,12 +885,13 @@ function startTyping() {
 
             <br>
 
+            <button class="audio-inline" onclick="speakRussian()">🔊 発音を聞く</button>
+            <br>
             <button onclick="checkTyping()">
                 答え合わせ
             </button>
 
             <div id="result" class="result"></div>
-            <button onclick="speakRussian()">🔊 発音を聞く</button>
 
         </div>
     `;
@@ -885,6 +908,7 @@ function startAudio() {
 
     attempts = 0;
     answerLocked = false;
+    lastWrongTapAt = 0;
 
     currentExerciseType = "audio";
 
@@ -982,6 +1006,12 @@ function checkCloze() {
     const input =
         document.getElementById("answerInput");
 
+    if (answerLocked || !input) return;
+    if (!input.value.trim()) {
+        const result = document.getElementById("result");
+        if (result) result.textContent = "入力してから答え合わせを押してね。";
+        return;
+    }
     const answer = input.value;
     if (answerLocked) return;
 
@@ -1008,6 +1038,12 @@ function checkTyping() {
     const input =
         document.getElementById("answerInput");
 
+    if (answerLocked || !input) return;
+    if (!input.value.trim()) {
+        const result = document.getElementById("result");
+        if (result) result.textContent = "入力してから答え合わせを押してね。";
+        return;
+    }
     const answer = input.value;
     if (answerLocked) return;
 
@@ -1037,6 +1073,12 @@ function checkAudio() {
     const input =
         document.getElementById("answerInput");
 
+    if (answerLocked || !input) return;
+    if (!input.value.trim()) {
+        const result = document.getElementById("result");
+        if (result) result.textContent = "入力してから答え合わせを押してね。";
+        return;
+    }
     const answer = input.value;
     if (answerLocked) return;
 
@@ -1153,6 +1195,10 @@ function handleCorrect() {
 function handleWrong(message) {
 
     if (answerLocked) return;
+    // 連続タップで誤答が2回記録されるのを防ぐ。
+    const now = Date.now();
+    if (now - lastWrongTapAt < 700) return;
+    lastWrongTapAt = now;
     attempts++;
 
     const state =
