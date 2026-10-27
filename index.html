@@ -210,6 +210,30 @@ let learningData = {};
 
 const STORAGE_KEY = "russianGardenLearningData";
 const BACKUP_KEY = "russianGardenLearningData_backup_before_update";
+const V5_META_KEY = "russianGardenV5Meta";
+let v5Meta = { lessonNumber: 0, recentLessons: [] };
+try {
+    const savedMeta = JSON.parse(localStorage.getItem(V5_META_KEY) || "null");
+    if (savedMeta && typeof savedMeta === "object") v5Meta = Object.assign(v5Meta, savedMeta);
+} catch (error) { console.warn("出題履歴を読み込めませんでした", error); }
+function saveV5Meta() { localStorage.setItem(V5_META_KEY, JSON.stringify(v5Meta)); }
+function migrateV5StagesOnce() {
+    if (v5Meta.migrated) return;
+    questions.forEach(function(q) {
+        const state = learningData[q.id];
+        if (!state) return;
+        // v4: 3=translation, 4=listening. v5 swaps these.
+        if (state.stage === 3) state.stage = 4;
+        else if (state.stage === 4) state.stage = 3;
+        // Low-retention archive entries need translation practice.
+        else if (state.stage === 5 && Number(state.retention) < 80) state.stage = 4;
+        if (state.stage === 4 && !Number.isFinite(Number(state.translationWins))) state.translationWins = 0;
+    });
+    v5Meta.migrated = true;
+    saveLearningData();
+    saveV5Meta();
+}
+
 if (localStorage.getItem(STORAGE_KEY) && !localStorage.getItem(BACKUP_KEY)) {
     localStorage.setItem(BACKUP_KEY, localStorage.getItem(STORAGE_KEY));
 }
@@ -326,7 +350,7 @@ function saveLearningData() {
 
 function exportLearningData() {
     const blob = new Blob(
-        [JSON.stringify(learningData, null, 2)],
+        [JSON.stringify(Object.assign({}, learningData, { "__v5meta": v5Meta }), null, 2)],
         { type: "application/json" }
     );
     const url = URL.createObjectURL(blob);
@@ -351,6 +375,14 @@ function importLearningData(event) {
                 return;
             }
             learningData = migrateLearningData(raw);
+            if (raw.__v5meta && typeof raw.__v5meta === "object") {
+                v5Meta = Object.assign({ lessonNumber: 0, recentLessons: [] }, raw.__v5meta);
+            } else {
+                // Old backups must be migrated once after importing.
+                v5Meta = { lessonNumber: 0, recentLessons: [] };
+            }
+            saveV5Meta();
+            migrateV5StagesOnce();
             saveLearningData();
             alert("学習記録を読み込みました！");
             startLesson();
@@ -391,61 +423,40 @@ function shuffle(array) {
 ========================================================= */
 
 function buildSession() {
-    // 新規紹介はレッスン単位ではなく、暦日単位で最大2文。
     const today = todayString();
-    const allIds = questions.map(function(q) { return q.id; });
-    const introducedToday = allIds.filter(function(id) {
-        return learningData[id].introducedOn === today;
-    }).length;
+    const ids = questions.map(q => q.id);
+    const byId = new Map(questions.map(q => [q.id, q]));
+    const selected = [];
+    const selectedSet = new Set();
+    const add = id => { if (!selectedSet.has(id) && selected.length < 10) { selected.push(id); selectedSet.add(id); } };
+    const introducedToday = ids.filter(id => learningData[id].introducedOn === today).length;
     const newSlots = Math.max(0, 2 - introducedToday);
-    const unseen = shuffle(allIds.filter(function(id) {
-        const state = learningData[id];
-        return state.stage === 0 && !state.introduced;
-    }));
-    const selected = unseen.slice(0, newSlots);
-
-    // 蔵入り（stage 5）は最大2問。それ以外は学習途中の文を優先。
-    const learned = allIds.filter(function(id) {
-        return learningData[id].stage > 0;
-    });
+    const recent = Array.isArray(v5Meta.recentLessons) ? v5Meta.recentLessons : [];
     function score(id) {
-        const state = learningData[id];
-        return (state.lastResult === "wrong" ? 1000 : 0)
-            + (100 - (Number(state.retention) || 0)) * 3
-            + Math.min(Number(state.wrongCount) || 0, 20) * 4;
+        const st = learningData[id];
+        const last = recent.length && recent[recent.length - 1].includes(id);
+        const recentCount = recent.slice(-3).filter(lesson => lesson.includes(id)).length;
+        const dueBonus = st.nextReview && st.nextReview <= today ? 35 : 0;
+        return (st.lastResult === "wrong" ? 90 : 0)
+            + (100 - (Number(st.retention) || 0)) * 1.5
+            + Math.min(Number(st.wrongCount) || 0, 15) * 3
+            + dueBonus - (last ? 230 : 0) - recentCount * 55 + Math.random() * 35;
     }
-    function ranked(ids) {
-        return shuffle(ids).sort(function(a, b) { return score(b) - score(a); });
-    }
-    const developing = ranked(learned.filter(function(id) {
-        return learningData[id].stage < 5;
-    }));
-    const archive = ranked(learned.filter(function(id) {
-        return learningData[id].stage === 5;
-    }));
-    selected.push(...developing.slice(0, 10 - selected.length));
-    selected.push(...archive.slice(0, Math.min(2, 10 - selected.length)));
-
-    // 問題が足りない場合は既習文を再利用する。新規紹介は増やさず、
-    // 蔵入りも最大2問を守る（既習文が存在しない場合のみ10問未満）。
-    const repeats = shuffle(selected.filter(function(id) {
-        return learningData[id].stage > 0 && learningData[id].stage < 5;
-    }));
-    if (!repeats.length) {
-        repeats.push(...shuffle(selected.filter(function(id) {
-            return learningData[id].stage === 0;
-        })));
-    }
-    let cursor = 0;
-    while (selected.length < 10 && repeats.length) {
-        selected.push(repeats[cursor % repeats.length]);
-        cursor++;
-    }
-
-    const byId = new Map(questions.map(function(q) { return [q.id, q]; }));
-    return shuffle(selected).map(function(id) {
-        return { id: id, question: byId.get(id) };
-    });
+    const ranked = arr => arr.slice().sort((a,b) => score(b)-score(a));
+    // An interrupted introduction is already counted for its original day.
+    const pending = ranked(ids.filter(id => learningData[id].stage === 0 && learningData[id].introduced));
+    pending.forEach(add);
+    const fresh = shuffle(ids.filter(id => learningData[id].stage === 0 && !learningData[id].introduced));
+    fresh.slice(0, newSlots).forEach(add);
+    const developing = ranked(ids.filter(id => learningData[id].stage >= 1 && learningData[id].stage <= 4));
+    developing.forEach(add);
+    const archived = ranked(ids.filter(id => learningData[id].stage === 5));
+    // Prefer at most two archive reviews; if there are too few developing items,
+    // use more archive items rather than repeating a question or returning only 2.
+    archived.slice(0, 2).forEach(add);
+    if (selected.length < 10) archived.forEach(add);
+    // Never duplicate a question within one lesson.
+    return shuffle(selected).map(id => ({ id, question: byId.get(id) }));
 }
 
 /* =========================================================
@@ -476,7 +487,7 @@ function updateProgress() {
 
     if (session.length === 0) {
 
-        progress.textContent = "今日は復習なし";
+        progress.textContent = "出題できる問題がありません";
 
         return;
     }
@@ -774,17 +785,15 @@ function startCloze() {
     let possibleIndexes = [];
 
     for (let i = 0; i < words.length; i++) {
-        if (/[\p{L}]/u.test(words[i])) possibleIndexes.push(i);
+        const bare = words[i].toLowerCase().replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+        if (/[\p{L}]/u.test(bare) && !new Set(["я","ты","он","она","оно","мы","вы","они"]).has(bare)) possibleIndexes.push(i);
     }
 
     if (possibleIndexes.length === 0) {
 
-        possibleIndexes =
-            words.map(function(word, index) {
-
-                return index;
-
-            });
+        // A pronoun-only sentence cannot make a valid cloze: use listening instead.
+        startAudio();
+        return;
 
     }
 
@@ -869,13 +878,15 @@ function startTyping() {
         <div class="box">
 
             <div class="small">
-                ④ 英文から入力
+                ⑤ 英文から入力
             </div>
 
             <p class="english">
                 🇬🇧 ${q.english}
             </p>
 
+            <button class="audio-inline" onclick="speakRussian()">🔊 発音を聞く</button>
+            <br>
             <input
                 type="text"
                 id="answerInput"
@@ -885,8 +896,6 @@ function startTyping() {
 
             <br>
 
-            <button class="audio-inline" onclick="speakRussian()">🔊 発音を聞く</button>
-            <br>
             <button onclick="checkTyping()">
                 答え合わせ
             </button>
@@ -919,7 +928,7 @@ function startAudio() {
         <div class="box">
 
             <div class="small">
-                ⑤ 音声から入力
+                ④ 音声から入力
             </div>
 
             <p>
@@ -1104,87 +1113,29 @@ function checkAudio() {
 ========================================================= */
 
 function handleCorrect() {
-
     if (answerLocked) return;
     answerLocked = true;
-    const state =
-        learningData[currentQuestion.id];
-
+    const state = learningData[currentQuestion.id];
     state.correctCount++;
-
     state.lastResult = "correct";
-
-
-    /*
-       正解で定着度アップ
-       ただし大幅には上げない
-    */
-
-    state.retention =
-        Math.min(100, state.retention + 10);
-
-
-    /*
-       NEWなら紹介→並び替えをクリアしたので
-       次の段階へ
-    */
-
-    if (state.stage === 0) {
-
-        state.stage = 2;
-
-    } else {
-
-        // 同じ日でも、正解するたびに次の形式へ進める。
-        // stage 5 は蔵出しとして維持する。
-        if (state.stage < 5) state.stage++;
-
+    state.retention = Math.min(100, (Number(state.retention) || 0) + 10);
+    if (state.stage === 0) state.stage = 2;
+    else if (state.stage === 1) state.stage = 2;
+    else if (state.stage === 2) state.stage = 3;
+    else if (state.stage === 3) { state.stage = 4; state.translationWins = 0; }
+    else if (state.stage === 4) {
+        // Each lesson can award at most one translation win.
+        if (state.lastTranslationWinLesson !== v5Meta.lessonNumber) {
+            state.translationWins = (Number(state.translationWins) || 0) + 1;
+            state.lastTranslationWinLesson = v5Meta.lessonNumber;
+        }
+        if (state.translationWins >= 3) state.stage = 5;
     }
-
-
-    /*
-       長期保存
-    */
-
-    if (
-        state.stage >= 4 &&
-        state.retention >= 80
-    ) {
-
-        state.stage = 5;
-
-    }
-
-
-    /*
-       次回出題日を決める
-    */
-
-    scheduleNextReview(state); // 参考情報。出題の可否には使用しない。
-
-
+    scheduleNextReview(state);
     saveLearningData();
-
-
-    const result =
-        document.getElementById("result");
-
-    if (result) {
-
-        result.textContent = "🎉 正解！";
-
-    }
-
-
-    /*
-       正解時は今まで通り自動で次へ
-    */
-
-    setTimeout(function() {
-
-        nextQuestion();
-
-    }, 700);
+    const result = document.getElementById("result");
+    if (result) result.textContent = "🎉 正解！";
+    setTimeout(function() { nextQuestion(); }, 700);
 }
 
 
@@ -1248,7 +1199,8 @@ function handleWrong(message) {
         state.retention =
             Math.max(0, state.retention - 30);
 
-        state.stage = 3;
+        state.stage = 4;
+        state.translationWins = 0;
 
     }
 
@@ -1258,13 +1210,10 @@ function handleWrong(message) {
        必要なら一段階戻す
     */
 
-    else if (
-        state.stage > 1 &&
-        state.retention < 30
-    ) {
-
+    else if (state.stage === 4) {
+        state.translationWins = 0;
+    } else if (state.stage > 1 && state.retention < 30) {
         state.stage--;
-
     }
 
 
@@ -1479,6 +1428,10 @@ function startLesson() {
     window.speechSynthesis.cancel();
 
     session = buildSession();
+    v5Meta.lessonNumber = (Number(v5Meta.lessonNumber) || 0) + 1;
+    v5Meta.recentLessons = (Array.isArray(v5Meta.recentLessons) ? v5Meta.recentLessons : [])
+        .concat([session.map(item => item.id)]).slice(-5);
+    saveV5Meta();
 
     currentPosition = 0;
 
@@ -1546,11 +1499,11 @@ function nextQuestionStart() {
 
     } else if (state.stage === 3) {
 
-        startTyping();
+        startAudio();
 
     } else {
 
-        startAudio();
+        startTyping();
 
     }
 }
@@ -1561,7 +1514,7 @@ function nextQuestionStart() {
 ========================================================= */
 
 loadLearningData();
-
+migrateV5StagesOnce();
 startLesson();
 
 </script>
