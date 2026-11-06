@@ -422,10 +422,22 @@ function shuffle(array) {
    出題対象を選ぶ
 ========================================================= */
 
+function isQuestionAvailable(question) {
+    if (!question.combined) return true;
+    return Array.isArray(question.combinedFrom)
+        && question.combinedFrom.length > 0
+        && question.combinedFrom.every(id =>
+            learningData[id] && learningData[id].stage === 5
+        );
+}
+
 function buildSession() {
     const today = todayString();
-    const ids = questions.map(q => q.id);
-    const byId = new Map(questions.map(q => [q.id, q]));
+    // Combined long-sentence questions remain hidden until every component
+    // sentence has reached stage 5. Their learning states remain independent.
+    const availableQuestions = questions.filter(isQuestionAvailable);
+    const ids = availableQuestions.map(q => q.id);
+    const byId = new Map(availableQuestions.map(q => [q.id, q]));
     const selected = [];
     const selectedSet = new Set();
     const add = id => { if (!selectedSet.has(id) && selected.length < 10) { selected.push(id); selectedSet.add(id); } };
@@ -910,6 +922,19 @@ function startTyping() {
 
 
 /* =========================================================
+   音声問題の英訳表示（学習記録には影響しない）
+========================================================= */
+
+function toggleAudioTranslation() {
+    const translation = document.getElementById("audioTranslation");
+    const button = document.querySelector('#app button[onclick="toggleAudioTranslation()"]');
+    if (!translation || !button) return;
+    translation.hidden = !translation.hidden;
+    button.textContent = translation.hidden ? "英訳を見る" : "英訳を隠す";
+}
+
+
+/* =========================================================
    音声→入力
 ========================================================= */
 
@@ -941,6 +966,15 @@ function startAudio() {
             >
                 🔊 もう一度聞く
             </button>
+
+            <br>
+
+            <button type="button" class="audio-inline" onclick="toggleAudioTranslation()">
+                英訳を見る
+            </button>
+            <div id="audioTranslation" hidden>
+                <p class="english">🇬🇧 ${q.english}</p>
+            </div>
 
             <br>
 

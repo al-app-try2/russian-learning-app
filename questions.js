@@ -1,6 +1,6 @@
 /*
  * 庭師式ロシア語学習：問題データ
- * 既存42問は元の並び順を維持し、学習記録の移行に対応しています。
+ * 既存84問は元の並び順を維持し、学習記録の移行に対応しています。
  * 新しい問題は、既存問題の後ろに追加してください。各問題の id は変更しないでください。
  */
 window.RUSSIAN_QUESTIONS = [
@@ -591,5 +591,306 @@ window.RUSSIAN_QUESTIONS = [
     "russian": "У меня есть дети.",
     "japanese": "私には子どもがいます。",
     "theme": "people"
+  },
+  {
+    "id": "favorites-01",
+    "english": "Victory is the only thing that matters.",
+    "russian": "Победа — единственное, что имеет значение.",
+    "japanese": "勝利こそが唯一重要なものだ。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-02",
+    "english": "Attack the flanks.",
+    "russian": "Атакуйте фланги.",
+    "japanese": "側面を攻撃せよ。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-03",
+    "english": "Provide covering fire.",
+    "russian": "Огонь на прикрытие.",
+    "japanese": "援護射撃！",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-04",
+    "english": "Never forget.",
+    "russian": "Никогда не забывай.",
+    "japanese": "決して忘れるな。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-05",
+    "english": "Shadows from the past.",
+    "russian": "Тени из прошлого.",
+    "japanese": "過去からの影。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-06",
+    "english": "All units, advance!",
+    "russian": "Всем подразделениям — вперёд!",
+    "japanese": "全部隊、前進！",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-a-1",
+    "english": "I'm heading home from work.",
+    "russian": "Я иду домой с работы.",
+    "japanese": "私は仕事から帰る途中です。",
+    "theme": "favorites",
+    "longGroup": "A"
+  },
+  {
+    "id": "favorites-a-2",
+    "english": "And my path is strewn with stars and flowers.",
+    "russian": "И путь мой усеян звездами и цветами.",
+    "japanese": "道には花と星が満ちています。",
+    "theme": "favorites",
+    "longGroup": "A"
+  },
+  {
+    "id": "favorites-a-full",
+    "english": "I'm heading home from work. And my path is strewn with stars and flowers.",
+    "russian": "Я иду домой с работы. И путь мой усеян звездами и цветами.",
+    "japanese": "私は仕事から帰る途中です。道には花と星が満ちています。",
+    "theme": "favorites",
+    "combined": true,
+    "combinedFrom": [
+      "favorites-a-1",
+      "favorites-a-2"
+    ]
+  },
+  {
+    "id": "favorites-07",
+    "english": "Doctor, were you looking for me?",
+    "russian": "Доктор, вы меня искали?",
+    "japanese": "ドクター、私を探していましたか？",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-08",
+    "english": "The signal from Rhodes Island, as always, puts me at ease.",
+    "russian": "Сигнал Родос Айленда, как всегда, меня успокаивает.",
+    "japanese": "ロドス・アイランドの信号は、いつものように私を落ち着かせてくれる。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-b-1",
+    "english": "Is everything ready?",
+    "russian": "Всё готово?",
+    "japanese": "忘れ物はない？",
+    "theme": "favorites",
+    "longGroup": "B"
+  },
+  {
+    "id": "favorites-b-2",
+    "english": "Then let's go!",
+    "russian": "Тогда вперёд!",
+    "japanese": "それじゃ、出発しようか。",
+    "theme": "favorites",
+    "longGroup": "B"
+  },
+  {
+    "id": "favorites-b-full",
+    "english": "Is everything ready? Then let's go!",
+    "russian": "Всё готово? Тогда вперёд!",
+    "japanese": "忘れ物はない？それじゃ、出発しようか。",
+    "theme": "favorites",
+    "combined": true,
+    "combinedFrom": [
+      "favorites-b-1",
+      "favorites-b-2"
+    ]
+  },
+  {
+    "id": "favorites-09",
+    "english": "Phew... give me five, Doctor!",
+    "russian": "Фух... дайте пять Доктор!",
+    "japanese": "ふう……ドクター、ハイタッチ！",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-10",
+    "english": "They won't get away.",
+    "russian": "Им не уйти.",
+    "japanese": "奴らを逃がしはしない。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-11",
+    "english": "Doctor, would you like something to eat?",
+    "russian": "Доктор, кушать хотите?",
+    "japanese": "ドクター、ご飯を食べたいですか？",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-c-1",
+    "english": "I didn't want things to end this way with you.",
+    "russian": "Я не хотела с тобой всё закончилось так.",
+    "japanese": "ほんとはここまで徹底的にやるつもりなかったんだ。",
+    "theme": "favorites",
+    "longGroup": "C"
+  },
+  {
+    "id": "favorites-c-2",
+    "english": "But who will stop the enemies if not us?",
+    "russian": "Но кто же остановит врагов, если не мы.",
+    "japanese": "でも戦わないと、グムたちがやられちゃうんだよ。",
+    "theme": "favorites",
+    "longGroup": "C"
+  },
+  {
+    "id": "favorites-c-full",
+    "english": "I didn't want things to end this way with you. But who will stop the enemies if not us?",
+    "russian": "Я не хотела с тобой всё закончилось так. Но кто же остановит врагов, если не мы.",
+    "japanese": "ほんとはここまで徹底的にやるつもりなかったんだ。でも戦わないと、グムたちがやられちゃうんだよ。",
+    "theme": "favorites",
+    "combined": true,
+    "combinedFrom": [
+      "favorites-c-1",
+      "favorites-c-2"
+    ]
+  },
+  {
+    "id": "favorites-12",
+    "english": "Cheer up, everyone.",
+    "russian": "Взбодритесь, народ.",
+    "japanese": "みんな、元気を出して。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-13",
+    "english": "Everyone's hungry, right?",
+    "russian": "Все проголодались верно.",
+    "japanese": "みんなお腹が空いたよね？",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-14",
+    "english": "Help yourselves!",
+    "russian": "Угощайтесь",
+    "japanese": "どうぞ召し上がれ。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-15",
+    "english": "It's time for Gummy's special dish.",
+    "russian": "пришло время особого блюда Гум",
+    "japanese": "グム特製料理の時間だよ。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-16",
+    "english": "I'm here to protect.",
+    "russian": "Я здесь, чтобы защищать.",
+    "japanese": "私は守るためにここにいる。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-17",
+    "english": "In position.",
+    "russian": "На позиции",
+    "japanese": "配置についた。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-18",
+    "english": "What, am I the captain now?",
+    "russian": "Чего я что, теперь капитан?",
+    "japanese": "えっ、何？ 私が今度は隊長なの？",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-d-1",
+    "english": "I lose my way in the cold passageways.",
+    "russian": "Я теряюсь в переходах холодных.",
+    "japanese": "冷たく、音が反響する通路で道に迷い、",
+    "theme": "favorites",
+    "longGroup": "D"
+  },
+  {
+    "id": "favorites-d-2",
+    "english": "I drink coffee and look at the clock.",
+    "russian": "Пью кофе, смотрю на часы.",
+    "japanese": "コーヒーを飲みながら、時計に目をやる。",
+    "theme": "favorites",
+    "longGroup": "D"
+  },
+  {
+    "id": "favorites-d-full",
+    "english": "I lose my way in the cold passageways. I drink coffee and look at the clock.",
+    "russian": "Я теряюсь в переходах холодных. Пью кофе, смотрю на часы.",
+    "japanese": "冷たく、音が反響する通路で道に迷い、コーヒーを飲みながら、時計に目をやる――",
+    "theme": "favorites",
+    "combined": true,
+    "combinedFrom": [
+      "favorites-d-1",
+      "favorites-d-2"
+    ]
+  },
+  {
+    "id": "favorites-e-1",
+    "english": "An endless sky unfolds above us.",
+    "russian": "Бесконечное развёрнуто небо.",
+    "japanese": "目の前には果てしない空が広がっている。",
+    "theme": "favorites",
+    "longGroup": "E"
+  },
+  {
+    "id": "favorites-e-2",
+    "english": "On which we burned our bridges.",
+    "russian": "На котором мы сжигали мосты.",
+    "japanese": "かつて私たちが、もう後戻りはできないと決めた、あの空が。",
+    "theme": "favorites",
+    "longGroup": "E"
+  },
+  {
+    "id": "favorites-e-full",
+    "english": "An endless sky unfolds above us. On which we burned our bridges.",
+    "russian": "Бесконечное развёрнуто небо. На котором мы сжигали мосты.",
+    "japanese": "目の前には果てしない空が広がっている。かつて私たちが、もう後戻りはできないと決めた、あの空が。",
+    "theme": "favorites",
+    "combined": true,
+    "combinedFrom": [
+      "favorites-e-1",
+      "favorites-e-2"
+    ]
+  },
+  {
+    "id": "favorites-19",
+    "english": "I wish I had more time; it's too early to be strong.",
+    "russian": "Мне бы время, рано быть сильнее.",
+    "japanese": "もっと時間があればよかった。強くなるには、まだ早すぎる。",
+    "theme": "favorites"
+  },
+  {
+    "id": "favorites-f-1",
+    "english": "I have outrageously little of you.",
+    "russian": "Мне тебя возмутительно мало.",
+    "japanese": "あなたについて知っていることは、あまりにも少ない。腹立たしいほどに、ほんのわずかしか――",
+    "theme": "favorites",
+    "longGroup": "F"
+  },
+  {
+    "id": "favorites-f-2",
+    "english": "And April knows all about it.",
+    "russian": "И об этом всё знает апрель.",
+    "japanese": "そして、四月はすべてを知っている。",
+    "theme": "favorites",
+    "longGroup": "F"
+  },
+  {
+    "id": "favorites-f-full",
+    "english": "I have outrageously little of you. And April knows all about it.",
+    "russian": "Мне тебя возмутительно мало. И об этом всё знает апрель.",
+    "japanese": "あなたについて知っていることは、あまりにも少ない。腹立たしいほどに、ほんのわずかしか――そして、四月はすべてを知っている。",
+    "theme": "favorites",
+    "combined": true,
+    "combinedFrom": [
+      "favorites-f-1",
+      "favorites-f-2"
+    ]
   }
 ];
