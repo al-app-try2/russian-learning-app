@@ -1533,11 +1533,12 @@ function nextQuestionStart() {
 
     } else if (state.stage === 3) {
 
-        startAudio();
+        startTyping();
 
     } else {
 
-        startTyping();
+        // Stage 4 (listening) and stage 5 (archive) use audio input.
+        startAudio();
 
     }
 }
